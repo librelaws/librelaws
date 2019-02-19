@@ -1,0 +1,17 @@
+language: python
+# command to install dependencies
+install: "make"
+script:
+  - make init
+cache: pip
+jobs:
+  include:
+    - stage: test
+      script:
+        - make test
+      python: '3.6'
+    - stage: test
+      script:
+        - make test
+      python: '3.7'
+      dist: xenial   
