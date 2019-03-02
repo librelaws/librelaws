@@ -43,32 +43,32 @@ def lookup_history(url):
         links.append(join(retrieve_root, d["timestamp"], d["original"]))
     return links
 
-def save_response(resp, date, dl_dir, rename_to=None):
+def save_response(resp, dl_dir, rename_to=None):
     """
     Save a response into the local `date/abbrevation/*.zip` hierarchy. If
     `rename_to` is specified rename the file appropriately.
     The response must either be from the internet archive or to `gesetze-im-internet.de`
     """
-    url = resp.url()
+    url = resp.url
     if rename_to is None:
         rename_to = path.filename(url)
-    if url.contains('web.archive.org'):
+    if 'web.archive.org' in url:
         match = re.findall(r'\d{14}')[0]
         d = datetime.strptime("%Y%m%d%H%M%S", match)
-    elif url.contains('www.gesetze-im-internet.de'):
+    elif 'www.gesetze-im-internet.de' in url:
         d = datetime.now()
     else:
         raise ValueError("Expected archive.org or gesetze-im-internet.de url. Found: {}".format(url))
     abbrev = path.basename(path.dirname(url))
-    ts = d.date.isoformat()
+    ts = d.date().isoformat()
     dirname = path.join(dl_dir, ts, abbrev)
 
     # Make sure the path exists
     if not os.path.exists(dirname):
         os.makedirs(dirname)
     path_to_file = path.join(dirname, rename_to)
-    with open(path_to_file, 'w') as f:
-        f.write(response.content)
+    with open(path_to_file, 'wb') as f:
+        f.write(resp.content)
     return path_to_file
 
 
@@ -113,17 +113,7 @@ def download_zipped_file_if_newer(dl_dir, link):
     if r.status_code == 304:
         return None
     etag = r.headers['ETag'].strip('"')
-    today = date.today().isoformat()
-    # remove leading / to make the later join easier
-    rel_path = url.path.strip('/')
-    # Compute the dirname including the dlfolder but excluding the file
-    dname = dirname(path.join(dl_dir, today, rel_path))
-    if not os.path.exists(dname):
-        os.makedirs(dname)
-    file_path = os.path.join(dname, etag + '.zip')
-    with open(file_path, 'wb') as f:
-        f.write(r.content)
-    return file_path
+    return save_response(r, dl_dir, rename_to=etag+'.zip')
 
 
 def bgbl_citation_date(part, year, page):
