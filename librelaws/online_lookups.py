@@ -11,6 +11,12 @@ from lxml import etree
 
 from librelaws.xml_operations import transform_bip_html_to_cropped_html
 
+class VersionExistsError(Exception):
+    """Raised if a version is downloaded that already exists. May be
+    raised before or after the download finished.
+    """
+    def __init__(self, message):
+        self.message = message
 
 def get_links_gii():
     """
@@ -43,19 +49,24 @@ def lookup_history(url):
         links.append(join(retrieve_root, d["timestamp"], d["original"]))
     return links
 
-def save_response(resp, dl_dir, rename_to=None):
-    """
-    Save a response into the local `date/abbrevation/*.zip` hierarchy. If
-    `rename_to` is specified rename the file appropriately.
-    The response must either be from the internet archive or to `gesetze-im-internet.de`
+def _file_name_from_etag(resp):
+    etag = resp.headers['ETag'].strip('"')
+    return  etag + '.zip'
+
+def save_response(resp, dl_dir):
+    """Save a response into the local `date/abbrevation/*.zip` hierarchy.
+    The response must either be from the internet archive or to
+    `gesetze-im-internet.de`. If it is from the latter, rename the
+    file using the responses `etag`.
     """
     url = resp.url
-    if rename_to is None:
-        rename_to = path.filename(url)
+    
     if 'web.archive.org' in url:
-        match = re.findall(r'\d{14}')[0]
-        d = datetime.strptime("%Y%m%d%H%M%S", match)
+        match = re.findall(r'\d{14}', url)[0]
+        rename_to = path.basename(url)
+        d = datetime.strptime(match, "%Y%m%d%H%M%S")
     elif 'www.gesetze-im-internet.de' in url:
+        rename_to = _file_name_from_etag(resp)
         d = datetime.now()
     else:
         raise ValueError("Expected archive.org or gesetze-im-internet.de url. Found: {}".format(url))
@@ -91,17 +102,20 @@ def _get_latest_etag_for_link(dl_folder, link):
     return etag
 
 
-def download_zipped_file_if_newer(dl_dir, link):
+def download_gii_if_non_existing(dl_dir, link):
     """
-    Download `link` into the file hierarchy at `dl_dir` if its newer
-    than a potential local version.
+    Download `link` into if its newer (different etag) than a
+    potential local version.
 
     Return
     ------
-    [string | None]: Path to local file if it was downloaded else `None`
+    response: Successful  response
+
+    Raises
+    ------
+    VersionExistsError: If the version of the link already exists
     """
     url = urlparse(link)
-
     etag_local = _get_latest_etag_for_link(dl_dir, link)
     if etag_local is not None:
         headers = {'If-None-Match': '"{}"'.format(etag_local)}
@@ -111,9 +125,10 @@ def download_zipped_file_if_newer(dl_dir, link):
     r.raise_for_status()
     # is unchanged?
     if r.status_code == 304:
-        return None
-    etag = r.headers['ETag'].strip('"')
-    return save_response(r, dl_dir, rename_to=etag+'.zip')
+        raise VersionExistsError("Target of {} already exists".format(link))
+    return r
+    # etag = r.headers['ETag'].strip('"')
+    # return save_response(r, dl_dir, rename_to=etag+'.zip')
 
 
 def bgbl_citation_date(part, year, page):

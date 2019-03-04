@@ -1,7 +1,8 @@
 from setuptools import setup, find_packages
+from glob import glob
 
 
-with open('README.rst') as f:
+with open('README.md') as f:
     readme = f.read()
 
 with open('LICENSE') as f:
@@ -10,11 +11,12 @@ with open('LICENSE') as f:
 setup(
     name='librelaws',
     version='0.1.0',
-    description='Sample package for Python-Guide.org',
+    description='Download German law texts and create a git like structure from them over time',
     long_description=readme,
-    author='Kenneth Reitz',
-    author_email='me@kennethreitz.com',
-    url='https://github.com/kennethreitz/samplemod',
+    author='Christian Bourjau',
+    author_email='c.bourjau@posteo.de',
+    url='https://github.com/librelaws/librelaws',
     license=license,
+    scripts=glob('scripts/*'),
     packages=find_packages(exclude=('tests', ))
 )
