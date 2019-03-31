@@ -1,4 +1,5 @@
 from datetime import datetime
+import os
 from os import path
 from unittest import TestCase, skip
 import tempfile
@@ -22,12 +23,15 @@ class TestGesetzeImInternet(TestCase):
     def test_get_zipped_law_if_newer(self):
         link = online_lookups.get_links_gii().pop()
         with tempfile.TemporaryDirectory() as tmpdirname:
-            res = online_lookups.download_gii_if_non_existing(tmpdirname, link)
-            online_lookups.save_response(res, tmpdirname)
-            self.assertTrue(res is not None)
+            path = online_lookups.download_gii_if_non_existing(tmpdirname, link)
+            self.assertTrue(path is not None)
             # Now the file was not downloaded again
-            with self.assertRaises(online_lookups.VersionExistsError):
-                online_lookups.download_gii_if_non_existing(tmpdirname, link)
+            etags = online_lookups.get_dict_folder_etag(tmpdirname)
+
+            law_abbrev = os.path.basename(os.path.dirname(link))
+            etag = etags[law_abbrev]
+            path = online_lookups.download_gii_if_non_existing(tmpdirname, link, etag=etag)
+            self.assertTrue(path is None)
 
 
 class TestInternetArchive(TestCase):
@@ -48,7 +52,11 @@ class TestOffenegesetzeApi(TestCase):
 class TestBipApi(TestCase):
     def test_procedure_lookup(self):
         html = online_lookups.search_bundestag_dip('BGBl I', 2019, 54)
-        self.assertGreater(len(html.getroot()), 0)
+        html = etree.HTML(html)
+        self.assertGreater(len(html), 0)
+        # Crop html
+        xml_operations.transform_bip_html_to_cropped_html(html)
+
 
 class TestEtag(TestCase):
     def test_create_etag_table(self):
@@ -61,8 +69,7 @@ class TestXmlOperations(TestCase):
         with tempfile.TemporaryDirectory() as tmpdirname:
             # Should always download the file since there is no local
             # version in the folder
-            res = online_lookups.download_gii_if_non_existing(tmpdirname, link)
-            fname = online_lookups.save_response(res, tmpdirname)
+            fname = online_lookups.download_gii_if_non_existing(tmpdirname, link)
             xml = xml_operations.zip_to_xml(fname)
             self.assertGreater(len(xml.getroot()), 0)
             # Convert to html

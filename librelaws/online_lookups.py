@@ -193,7 +193,8 @@ def search_bundestag_dip(publication, bgbl_year, bgbl_page):
     r = requests.post(req_url, data=query, headers=headers, )
     r.raise_for_status()
     html = etree.HTML(r.text)
-    return transform_bip_html_to_cropped_html(html)
+    cropped_html = transform_bip_html_to_cropped_html(html)
+    return etree.tostring(cropped_html)
 
 
 def _create_headers_bip():
