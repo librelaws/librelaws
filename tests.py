@@ -3,7 +3,7 @@ import os
 from os import path
 from unittest import TestCase, skip
 import tempfile
-from datetime import date, datetime
+from datetime import date
 
 from lxml import etree
 
@@ -79,31 +79,43 @@ class TestXmlOperations(TestCase):
     def test_find_citation(self):
         xml_file = path.join(path.dirname(path.abspath(__file__)), 'test_files', 'StGB_pretty.xml')
         xml = etree.parse(xml_file)
-        xml_operations.get_citation_from_standkommentar_node(xml)
+        xml_operations.Citation.from_standkommentar_node(xml)
 
-    @skip
+    # @skip
     def test_find_all_local_files(self):
         """Require to have some local files stored"""
-        files = fs_operations.all_local_files("~/repos/giidl/mytestdir/")
+        import logging
+        files = fs_operations.all_local_files("~/archive_laws")
         for f in files:
             xml = xml_operations.zip_to_xml(f)
-            print(f)
-            xml_operations.get_citation_from_standkommentar_node(xml)
+            try:
+                xml_operations.Citation.from_standkommentar_node(xml)
+            except Exception as e:
+                try:
+                    cit = xml_operations.Citation.from_fundstelle_node(xml)
+                    logging.debug("Converted on second try: {} {} {}".format(cit.gazette, cit.year, cit.page))
+                except ValueError as e:
+                    pass  # logging.warning(e)
 
-    @skip
+    # @skip
     def test_origin_citation(self):
         """Require to have some local files stored"""
+        import logging
         files = fs_operations.all_local_files("~/repos/giidl/mytestdir/")
         for f in files:
             xml = xml_operations.zip_to_xml(f)
-            print(f)
-            xml_operations.get_origin_gazette(xml)
+            try:
+                xml_operations.Citation.from_fundstelle_node(xml)
+            except ValueError as e:
+                logging.warning(e)
+
 
 class TestCli(TestCase):
     def test_wrong_source(self):
         with self.assertRaises(Exception):
             args = parser.parse_args(['tmpdirname', 'download', '--source', 'not-a-source'])
 
+    @skip
     def test_dl_gii(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
             parser = cli.create_parser()
@@ -112,7 +124,8 @@ class TestCli(TestCase):
             # Should not crash if we try to download the same things again; just skipping
             args.func(args)
 
-    def test_dl_gii(self):
+    @skip
+    def test_dl_archive(self):
         with tempfile.TemporaryDirectory() as tmpdirname:
             parser = cli.create_parser()
             args = parser.parse_args(['tmpdirname', 'download', '--source', 'archive.org'])
