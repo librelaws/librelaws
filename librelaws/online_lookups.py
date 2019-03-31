@@ -12,12 +12,14 @@ from lxml import etree
 
 from librelaws.xml_operations import transform_bip_html_to_cropped_html
 
+
 class VersionExistsError(Exception):
     """Raised if a version is downloaded that already exists. May be
     raised before or after the download finished.
     """
     def __init__(self, message):
         self.message = message
+
 
 def get_links_gii():
     """
@@ -33,6 +35,7 @@ def get_links_gii():
     links = [el.text for el in tree.xpath('//link')]
     return links
 
+
 def lookup_history(url):
     """
     Lookup the history of a given file on the internet archive
@@ -41,7 +44,7 @@ def lookup_history(url):
     search = api_root + url
     resp = requests.get(search)
     resp.raise_for_status()
-    keys = ["urlkey","timestamp","original","mimetype","statuscode","digest","length"]
+    keys = ["urlkey", "timestamp", "original", "mimetype", "statuscode", "digest", "length"]
     links = []
     retrieve_root = "https://web.archive.org/web/"
     for l in resp.text.splitlines():
@@ -50,9 +53,11 @@ def lookup_history(url):
         links.append(join(retrieve_root, d["timestamp"], d["original"]))
     return links
 
+
 def _file_name_from_etag(resp):
     etag = resp.headers['ETag'].strip('"')
-    return  etag + '.zip'
+    return etag + '.zip'
+
 
 def save_response(resp, dl_dir):
     """Save a response into the local `date/abbrevation/*.zip` hierarchy.
@@ -61,7 +66,6 @@ def save_response(resp, dl_dir):
     file using the responses `etag`.
     """
     url = resp.url
-    
     if 'web.archive.org' in url:
         match = re.findall(r'\d{14}', url)[0]
         rename_to = path.basename(url)
