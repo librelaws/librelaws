@@ -176,3 +176,35 @@ class TestBuilddate(TestCase):
                     os.rmdir(path.dirname(path.dirname(dup)))
                 except OSError:
                     pass
+
+
+class TestGit(TestCase):
+    def test_author(self):
+        git.cabinet_sig(date(day=17, month=12, year=2013))
+        git.cabinet_sig(datetime(day=17, month=12, year=2013))
+
+
+def test_do_git():
+    import concurrent.futures
+
+    files = fs_operations.all_local_files('~/archive_laws')
+    files_with_cit = []
+    for f in files[:100]:
+        xml = xml_operations.zip_to_xml(f)
+        try:
+            cit = xml_operations.Citation.from_xml(xml)
+        except ValueError:
+            continue
+        if cit.gazette in ['BGBl I', 'BGBl II']:
+            files_with_cit.append((f, cit))
+    print("Number of queries: ", len(files_with_cit))
+    # Since want to build a git history its important that we get the order right.
+    # We do all th searches upfornt and than sort again
+    with concurrent.futures.ProcessPoolExecutor(max_workers=30) as executor:
+        future_to_file = {
+            executor.submit(online_lookups.search_bundestag_dip, cit.gazette, cit.year, cit.page): f
+            for (f, cit) in files_with_cit
+        }
+    for future in concurrent.futures.as_completed(future_to_file):
+        f = future_to_file[future]
+        future.result()
