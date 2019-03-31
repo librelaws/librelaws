@@ -64,7 +64,7 @@ def do_download(args):
         def parent_folder_name(url):
             return basename(dirname(url))
 
-        with concurrent.futures.ProcessPoolExecutor(max_workers=10) as executor:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
             # We cannot rely on any etags in this case so we just download it all
             futures = [
                 executor.submit(download_gii_if_non_existing, dl_dir, url, etag=parent_folder_name(url)) for url in links
@@ -80,7 +80,7 @@ def do_download(args):
             hist_links = executor.map(lookup_history, links)
             hist_links = tqdm(hist_links, desc='Collecting links...', total=len(links))
             flat_links = [item for sublist in hist_links for item in sublist]
-        with concurrent.futures.ProcessPoolExecutor(max_workers=10) as executor:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
             # We cannot rely on any etags in this case so we just download it all
             futures = [
                 executor.submit(get, url) for url in flat_links
