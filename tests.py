@@ -2,11 +2,13 @@ from datetime import datetime
 from os import path
 from unittest import TestCase, skip
 import tempfile
+from datetime import date, datetime
 
 from lxml import etree
 
-from librelaws import online_lookups, xml_operations, fs_operations
-from librelaws import cli
+from librelaws import (
+    online_lookups, xml_operations, fs_operations, cli, git
+)
 
 
 class TestGesetzeImInternet(TestCase):
@@ -47,6 +49,10 @@ class TestBipApi(TestCase):
     def test_procedure_lookup(self):
         html = online_lookups.search_bundestag_dip('BGBl I', 2019, 54)
         self.assertGreater(len(html.getroot()), 0)
+
+class TestEtag(TestCase):
+    def test_create_etag_table(self):
+        online_lookups.get_dict_folder_etag("~/repos/giidl/mytestdir/")
 
 
 class TestXmlOperations(TestCase):

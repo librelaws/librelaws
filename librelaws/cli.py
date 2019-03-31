@@ -1,12 +1,15 @@
 import argparse
 import concurrent.futures
 import logging
+from os.path import dirname, basename
 
 from requests import get
 from tqdm import tqdm
 
-from librelaws import online_lookups
-from librelaws.online_lookups import download_gii_if_non_existing, lookup_history
+from librelaws import online_lookups, fs_operations, xml_operations
+from librelaws.online_lookups import (
+    download_gii_if_non_existing, lookup_history, search_bundestag_dip
+)
 
 
 def create_parser():
@@ -56,18 +59,21 @@ def do_download(args):
     links = online_lookups.get_links_gii()
 
     if source == 'gii':
+        updates = []
+        etags = online_lookups.get_dict_folder_etag(dl_dir)
+        def parent_folder_name(url):
+            return basename(dirname(url))
+
         with concurrent.futures.ProcessPoolExecutor(max_workers=10) as executor:
-            # Submit requests to executor
+            # We cannot rely on any etags in this case so we just download it all
             futures = [
-                executor.submit(download_gii_if_non_existing, dl_dir, url) for url in links
+                executor.submit(download_gii_if_non_existing, dl_dir, url, etag=parent_folder_name(url)) for url in links
             ]
-            for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures)):
-                try:
-                    resp = future.result()
-                except online_lookups.VersionExistsError as exc:
-                    logging.info('%r exists locally. Skipping it.' % (exc))
-                    continue
-                online_lookups.save_response(resp, dl_dir)
+            for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc='Downloading...'):
+                path = future.result()
+                if path is not None:
+                    updates.append(path)
+        print("{} new files were downloaded".format(len(updates)))
 
     if source == 'archive.org':
         with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
@@ -86,3 +92,4 @@ def do_download(args):
                     logging.info('%r exists locally. Skipping it.' % (exc))
                     continue
                 online_lookups.save_response(resp, dl_dir)
+

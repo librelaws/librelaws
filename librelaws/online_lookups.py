@@ -5,6 +5,7 @@ from os.path import dirname, basename, join
 from urllib.parse import urlencode, urlparse
 import os
 import re
+import logging
 
 import requests
 from lxml import etree
@@ -83,6 +84,19 @@ def save_response(resp, dl_dir):
     return path_to_file
 
 
+def get_dict_folder_etag(dl_dir):
+    """Create a hashmap mapping the `folder_name` (parent folder in url)
+    to the last seen etag"""
+    search_pattern = path.join(path.expanduser(dl_dir), "**/*.zip")
+    versions = glob(search_pattern, recursive=True)
+    d = {}
+    # sort by date (part of the path); newest is last
+    for v in sorted(versions):
+        parent_dir_name = basename(dirname(v))
+        d[parent_dir_name] = basename(v)[:-4]  # strip `.zip` from file name
+    return d
+
+
 def _get_latest_etag_for_link(dl_folder, link):
     """
     Check if a version of this link has already bean downloaded and if
@@ -102,33 +116,25 @@ def _get_latest_etag_for_link(dl_folder, link):
     return etag
 
 
-def download_gii_if_non_existing(dl_dir, link):
-    """
-    Download `link` into if its newer (different etag) than a
+def download_gii_if_non_existing(dl_dir, link, etag=None):
+    """Download `link` into `dl_dir` if its newer (different etag) than a
     potential local version.
 
     Return
     ------
-    response: Successful  response
-
-    Raises
-    ------
-    VersionExistsError: If the version of the link already exists
+    string: Path to new file or None if it already existed
     """
-    url = urlparse(link)
-    etag_local = _get_latest_etag_for_link(dl_dir, link)
-    if etag_local is not None:
-        headers = {'If-None-Match': '"{}"'.format(etag_local)}
+    if etag is not None:
+        headers = {'If-None-Match': '"{}"'.format(etag)}
     else:
         headers = None
     r = requests.get(link, headers=headers)
     r.raise_for_status()
     # is unchanged?
     if r.status_code == 304:
-        raise VersionExistsError("Target of {} already exists".format(link))
-    return r
-    # etag = r.headers['ETag'].strip('"')
-    # return save_response(r, dl_dir, rename_to=etag+'.zip')
+        logging.debug("Target of {} already exists".format(link))
+        return
+    return save_response(r, dl_dir)
 
 
 def bgbl_citation_date(part, year, page):
