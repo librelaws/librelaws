@@ -3,6 +3,7 @@ import concurrent.futures
 import logging
 from os.path import dirname, basename
 
+import requests
 from requests import get
 from tqdm import tqdm
 
@@ -61,20 +62,30 @@ def do_download(args):
     if source == 'gii':
         updates = []
         etags = online_lookups.get_dict_folder_etag(dl_dir)
-        def parent_folder_name(url):
-            return basename(dirname(url))
-
-        with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
+        def etag_for_url(url):
+            k = basename(dirname(url))
+            return etags.get(k, None)
+        request_excs = []
+        other_excs = []
+        with concurrent.futures.ProcessPoolExecutor(max_workers=1) as executor:
             # We cannot rely on any etags in this case so we just download it all
             futures = [
-                executor.submit(download_gii_if_non_existing, dl_dir, url, etag=parent_folder_name(url)) for url in links
+                executor.submit(download_gii_if_non_existing, dl_dir, url, etag=etag_for_url(url)) for url in links
             ]
-            for future in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc='Downloading...'):
-                path = future.result()
+            for future in tqdm(futures):  # concurrent.futures.as_completed(futures, timeout=2):
+                try:
+                    path = future.result()
+                except requests.exceptions.RequestException as e:
+                    request_excs.append(e.request.url)
+                except Exception as exc:
+                    other_excs.append(exc)
                 if path is not None:
                     updates.append(path)
         print("{} new files were downloaded".format(len(updates)))
+        print("Timed out urls: \n {}".format(request_excs))
+        print("Exceptions: ", other_excs)
 
+    # TODO: This part is out of date!
     if source == 'archive.org':
         with concurrent.futures.ProcessPoolExecutor(max_workers=4) as executor:
             hist_links = executor.map(lookup_history, links)

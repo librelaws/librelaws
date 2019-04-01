@@ -51,7 +51,6 @@ def version_exists_locally(dl_dir, response):
     m = hashlib.sha256()
     m.update(response.content)
     new_hash = m.digest()
-    print(new_hash)
 
     url = response.url
     stored_files = local_versions(dl_dir, url)
@@ -59,7 +58,6 @@ def version_exists_locally(dl_dir, response):
         with open(fname, 'rb') as f:
             m = hashlib.sha256()
             m.update(f.read())
-            print(m.digest())
             if m.digest() == new_hash:
                 return True
     return False

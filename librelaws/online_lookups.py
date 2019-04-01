@@ -1,8 +1,8 @@
-from datetime import date, datetime
+from datetime import datetime
 from glob import glob
 from os import path
 from os.path import dirname, basename, join
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlparse
 import os
 import re
 import logging
@@ -132,7 +132,7 @@ def download_gii_if_non_existing(dl_dir, link, etag=None):
         headers = {'If-None-Match': '"{}"'.format(etag)}
     else:
         headers = None
-    r = requests.get(link, headers=headers)
+    r = requests.get(link, headers=headers, timeout=10)
     r.raise_for_status()
     # is unchanged?
     if r.status_code == 304:
