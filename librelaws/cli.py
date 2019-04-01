@@ -51,12 +51,16 @@ def add_dl_subparser(subparsers):
         '--source', choices=['gii', 'archive.org'], required=True,
         help=('The source from which to download. `gesetze-im-internet.de` only serves the latest '
               'versions of each law, while `archive.org` may be incomplete. '))
+    parser_dl.add_argument(
+        '--quiet', default=False, help='Disable progress bar', action='store_true'
+    )
     parser_dl.set_defaults(func=do_download)
 
 
 def do_download(args):
     source = args.source
     dl_dir = args.__getattribute__('download-dir')
+    quiet = args.quiet
     links = online_lookups.get_links_gii()
 
     if source == 'gii':
@@ -72,7 +76,7 @@ def do_download(args):
             futures = [
                 executor.submit(download_gii_if_non_existing, dl_dir, url, etag=etag_for_url(url)) for url in links
             ]
-            for future in tqdm(futures):  # concurrent.futures.as_completed(futures, timeout=2):
+            for future in tqdm(futures, disable=quiet):  # concurrent.futures.as_completed(futures, timeout=2):
                 try:
                     path = future.result()
                 except requests.exceptions.RequestException as e:
