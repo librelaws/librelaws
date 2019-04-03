@@ -1,13 +1,9 @@
-Lawvolution
------------
+**This project is in an alpha state**
 
-Evolution of various German laws as if the Parliament were using git.
+Librelaws
+---------
+Laws are bits of text evolving over time in a collaborative fashion where changes are comited and signed off by certain parties or governments. Often times there are long discussions and alternative proposals leading up to the final vote. Sounds like a perfect fit for git, does it not? A government creates or changes a law by patching the existing corpus and signing off on the commit. Discussions and voting results can be stored in the commit messages along with mentions of alternative proposals. Any paragraph of any law could be attributed to one particular government and the discussion leading up to it would just be one `git blame` away!
 
+Unfortunately, (German) laws are only published online in their current states. Historical changes are only available in a non-machine readable (e.g the Bundesgesetzblatt in Germany). Discussions, votes, and alternative proposals have to be scrapped from the parliaments homepage. Its a bit of a mess! This project nevertheless tries to recreate such a `git log` of German laws by continuously monitoring the current versions at [gesetzte-im-internet.de](http://www.gesetzte-im-internet.de) and by scrapping the internet [archive.org](https://www.archive.org), [offene-gesetze.de](https://offenegesetze.de/), and [bundestag.de](https://www.bundestag.de). Lastly, everything is augmented with historical data so that we know whom to `blame` for a certain section by name and party.
 
-Notes
------
-- <zitstelle> is the very first publication of this law, not the current change. The current change can probably be found by regexing on <standkommentar> which always starts of after the latest "Neufassung"
-- Once the BGBl is found, we can find more details by searching for it on http://dipbt.bundestag.de/dip21.web/searchProcedures/advanced_search_list.do?selId=238517&method=select&offset=0&anzahl=100&sort=3&direction=desc . There we can find all proceedings concerning whatever ended up being published at that particular BGBl citation. 
-- It seems as if only named votes are published in an easy format. If there is not a named voted, the result is only mentioned in writing in the proceedings. Would have been nice to get a resolution along party lines, but I guess that would be quickly imprecise and is thus not published.
-- The results of named votes can be found at: https://www.bundestag.de/parlament/plenum/abstimmung/liste
-- Similar project in France: https://github.com/Legilibre/Archeo-Lex
+*The goal is to create and maintain such a git history completely automatically.*
