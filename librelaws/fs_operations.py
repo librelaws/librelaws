@@ -1,8 +1,9 @@
 from os import path
 from glob import glob
-import hashlib
 
 from lxml import etree
+
+from .xml_operations import zip_to_xml
 
 
 def all_local_files(dl_dir):
@@ -63,7 +64,7 @@ def version_exists_locally(dl_dir, response):
     return False
 
 
-def _hash_without_builddate(xml):
+def hash_without_builddate(xml):
     """
     Compute a hash for the given xml excluding the builddate attribute
     """
@@ -82,6 +83,21 @@ def _hash_without_builddate(xml):
 </xsl:stylesheet>
 """)
     transform = etree.XSLT(xsl)
-    m = hashlib.sha256()
-    m.update(etree.tostring(transform(xml)))
-    return m.digest()
+    return hash(etree.tostring(transform(xml)))
+
+def find_duplicates(files):
+    """
+    Find duplicates in the provided files. The returned files
+    **exclude** the first unique copy of each version. Ie. the
+    returned list can be deleted.  You probably want to sort the list
+    in some way before passing it here.
+    """
+    d = {}
+    for f in files:
+        h = hash_without_builddate(zip_to_xml(f))
+        if d.get(h, None) is None:
+            d[h] = [f]
+        else:
+            d[h].append(f)
+    dups = sum([v[1:] for v in d.values() if len(v) > 1], [])
+    return dups

@@ -139,44 +139,11 @@ class TestBuilddate(TestCase):
         xml1 = etree.XML('<a><b builddate="20130405132018">Text</b></a>')
         xml2 = etree.XML('<a><b>Text</b></a>')
         xml3 = etree.XML('<a><c>Text</c></a>')
-        hash1 = fs_operations._hash_without_builddate(xml1)
-        hash2 = fs_operations._hash_without_builddate(xml2)
-        hash3 = fs_operations._hash_without_builddate(xml3)
+        hash1 = fs_operations.hash_without_builddate(xml1)
+        hash2 = fs_operations.hash_without_builddate(xml2)
+        hash3 = fs_operations.hash_without_builddate(xml3)
         self.assertEqual(hash1, hash2)
         self.assertNotEqual(hash1, hash3)
-
-    @skip
-    def test_hash_all_files(self):
-        """
-        This is really not a test but rather a way to clean up duplicates. Should be in the Cli
-        """
-        import os
-        files = fs_operations.all_local_files("~/archive_laws")
-        seen = {}
-        for f in files:
-            try:
-                xml = xml_operations.zip_to_xml(f)
-            except:
-                print("Broken zip file: ", f)
-                continue
-            h = fs_operations._hash_without_builddate(xml)
-            same = seen.get(h, [])
-            same.append(f)
-            seen[h] = same
-        dups_list = [sorted(fs) for fs in seen.values() if len(fs) > 1]
-        # Go through all seen duplicates (note: list of lists!)
-        for dups in dups_list:
-            # Remove duplicate files and empty folders; keep newst version
-            for dup in dups[:-1]:
-                os.remove(dup)
-                try:
-                    # abbrev folder; may not be empty if we combined archive.org and gii
-                    os.rmdir(path.dirname(dup))
-                    # Date folder
-                    os.rmdir(path.dirname(path.dirname(dup)))
-                except OSError:
-                    pass
-
 
 class TestGit(TestCase):
     def test_author(self):

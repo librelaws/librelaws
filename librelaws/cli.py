@@ -1,6 +1,7 @@
 import argparse
 import concurrent.futures
 import logging
+import os
 from os.path import dirname, basename
 
 import requests
@@ -30,6 +31,7 @@ def create_parser():
     # Download related actions
     add_dl_subparser(subparsers)
     add_git_subparser(subparsers)
+    add_clean_subparser(subparsers)
     return parser
 
 
@@ -56,6 +58,9 @@ def add_dl_subparser(subparsers):
     )
     parser_dl.set_defaults(func=do_download)
 
+def add_clean_subparser(subparsers):
+    parser = subparsers.add_parser('clean', description='Delete duplicates from the `download-folder` keeping the oldest versions')
+    parser.set_defaults(func=do_clean)
 
 def do_download(args):
     source = args.source
@@ -108,3 +113,18 @@ def do_download(args):
                     continue
                 online_lookups.save_response(resp, dl_dir)
 
+def do_clean(args):
+    dl_dir = args.__getattribute__('download-dir')
+    files = sorted(fs_operations.all_local_files(dl_dir))
+    dups = fs_operations.find_duplicates(files)
+    for dup in dups:
+        os.remove(dup)
+        try:
+            # abbrev folder; may not be empty if we combined archive.org and gii
+            os.rmdir(dirname(dup))
+            # Date folder
+            os.rmdir(dirname(dirname(dup)))
+        except OSError:
+            # Folder was not empty
+            pass
+    print("Removed {} duplicates leaving {} unique files.".format(len(dups), len(files) - len(dups)))
