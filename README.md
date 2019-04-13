@@ -1,3 +1,5 @@
+[![Build Status](https://travis-ci.org/librelaws/librelaws.svg?branch=master)](https://travis-ci.org/librelaws/librelaws)
+
 **This project is in an alpha state**
 
 Librelaws
