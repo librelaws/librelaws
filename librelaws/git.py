@@ -53,6 +53,9 @@ def cabinet_sig(at_date):
             # make sure we have a datetime
             dt = datetime(at_date.year, at_date.month, at_date.day)
             ts = int(dt.timestamp())
+            if ts < 0:
+                # Github cannot deal with negative timestamps at the moment...
+                ts = 0
             return pygit2.Signature(c[0], email, ts)
     else:
         raise ValueError("No cabinate found for date {}", at_date)
