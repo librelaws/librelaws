@@ -7,11 +7,21 @@ from datetime import date
 
 from lxml import etree
 import pygit2
+import pytest
 import pypandoc
 
 from librelaws import (
     online_lookups, xml_operations, fs_operations, cli, git, conversion
 )
+
+
+@pytest.fixture(scope='session')
+def local_dir(tmpdir_factory):
+    """Download a bunch of files locally and make them available to other tests"""
+    links = online_lookups.get_links_gii()[:5]
+    dn = tmpdir_factory.mktemp("laws")
+    [online_lookups.download_gii_if_non_existing(dn, l) for l in links]
+    return dn
 
 
 class TestGesetzeImInternet(TestCase):
@@ -51,6 +61,17 @@ class TestOffenegesetzeApi(TestCase):
         self.assertEqual(found, should)
 
 
+def test_open_zip_convert_to_html(local_dir):
+    files = fs_operations.all_local_files(local_dir)
+    assert len(files) > 0
+    for fname in files:
+        xml = xml_operations.zip_to_xml(fname)
+        assert len(xml.getroot()) > 0
+        # Convert to html
+        html = xml_operations.transform_gii_xml_to_html(xml)
+        assert len(html.getroot()) > 0
+
+
 class TestBipApi(TestCase):
     def test_procedure_lookup(self):
         html = online_lookups.search_bundestag_dip('BGBl I', 2019, 54)
@@ -60,20 +81,6 @@ class TestBipApi(TestCase):
         html = xml_operations.transform_bip_html_to_cropped_html(html)
         # Convert to markdown
         pypandoc.convert_text(etree.tostring(html, encoding='unicode'), to='markdown_github', format='html')
-
-
-class TestXmlOperations(TestCase):
-    def test_open_zip_convert_to_html(self):
-        link = online_lookups.get_links_gii().pop()
-        with tempfile.TemporaryDirectory() as tmpdirname:
-            # Should always download the file since there is no local
-            # version in the folder
-            fname = online_lookups.download_gii_if_non_existing(tmpdirname, link)
-            xml = xml_operations.zip_to_xml(fname)
-            self.assertGreater(len(xml.getroot()), 0)
-            # Convert to html
-            html = xml_operations.transform_gii_xml_to_html(xml)
-            self.assertGreater(len(html.getroot()), 0)
 
     def test_find_citation(self):
         xml_file = path.join(path.dirname(path.abspath(__file__)), 'test_files', 'StGB_pretty.xml')
@@ -156,8 +163,9 @@ class TestGit(TestCase):
         git.cabinet_sig(datetime(day=17, month=12, year=2013))
 
 
-def test_augmentation():
-    files = fs_operations.all_local_files('~/Laws')
+def test_augmentation(local_dir):
+    # Only five links to speed things up
+    files = fs_operations.all_local_files(local_dir)
     res = git.augment_and_filter_files(files)
     print('{} / {} successfully processed'.format(len(res), len(files)))
 

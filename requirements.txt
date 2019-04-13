@@ -1,3 +1,6 @@
-requests
 lxml
+pygit2
+pypandoc
 pytest
+requests
+tqdm

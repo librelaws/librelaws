@@ -1,4 +1,6 @@
 language: python
+before_install:
+  - sudo apt-get install -y libxml2-dev pandoc
 # command to install dependencies
 install: "make"
 script:
