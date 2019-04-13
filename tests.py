@@ -6,9 +6,11 @@ import tempfile
 from datetime import date
 
 from lxml import etree
+import pygit2
+import pypandoc
 
 from librelaws import (
-    online_lookups, xml_operations, fs_operations, cli, git
+    online_lookups, xml_operations, fs_operations, cli, git, conversion
 )
 
 
@@ -55,12 +57,9 @@ class TestBipApi(TestCase):
         html = etree.HTML(html)
         self.assertGreater(len(html), 0)
         # Crop html
-        xml_operations.transform_bip_html_to_cropped_html(html)
-
-
-class TestEtag(TestCase):
-    def test_create_etag_table(self):
-        online_lookups.get_dict_folder_etag("~/repos/giidl/mytestdir/")
+        html = xml_operations.transform_bip_html_to_cropped_html(html)
+        # Convert to markdown
+        pypandoc.convert_text(etree.tostring(html, encoding='unicode'), to='markdown_github', format='html')
 
 
 class TestXmlOperations(TestCase):
@@ -81,7 +80,7 @@ class TestXmlOperations(TestCase):
         xml = etree.parse(xml_file)
         xml_operations.Citation.from_standkommentar_node(xml)
 
-    # @skip
+    @skip
     def test_find_all_local_files(self):
         """Require to have some local files stored"""
         import logging
@@ -97,7 +96,7 @@ class TestXmlOperations(TestCase):
                 except ValueError as e:
                     pass  # logging.warning(e)
 
-    # @skip
+    @skip
     def test_origin_citation(self):
         """Require to have some local files stored"""
         import logging
@@ -112,23 +111,28 @@ class TestXmlOperations(TestCase):
 
 class TestCli(TestCase):
     def test_wrong_source(self):
-        with self.assertRaises(Exception):
-            args = parser.parse_args(['tmpdirname', 'download', '--source', 'not-a-source'])
+        with tempfile.TemporaryDirectory() as tmpdir:
+            parser = cli.create_parser()
+            self.assertRaises(
+                SystemExit,
+                parser.parse_args,
+                [tmpdir, 'download', '--source', 'not-a-source']
+            )
 
     @skip
     def test_dl_gii(self):
-        with tempfile.TemporaryDirectory() as tmpdirname:
+        with tempfile.TemporaryDirectory() as tmpdir:
             parser = cli.create_parser()
-            args = parser.parse_args(['tmpdirname', 'download', '--source', 'gii'])
+            args = parser.parse_args([tmpdir.name, 'download', '--source', 'gii'])
             args.func(args)
             # Should not crash if we try to download the same things again; just skipping
             args.func(args)
 
     @skip
     def test_dl_archive(self):
-        with tempfile.TemporaryDirectory() as tmpdirname:
+        with tempfile.TemporaryDirectory() as tmpdir:
             parser = cli.create_parser()
-            args = parser.parse_args(['tmpdirname', 'download', '--source', 'archive.org'])
+            args = parser.parse_args([tmpdir.name, 'download', '--source', 'archive.org'])
             args.func(args)
             # Should not crash if we try to download the same things again; just skipping
             args.func(args)
@@ -145,33 +149,28 @@ class TestBuilddate(TestCase):
         self.assertEqual(hash1, hash2)
         self.assertNotEqual(hash1, hash3)
 
+
 class TestGit(TestCase):
     def test_author(self):
         git.cabinet_sig(date(day=17, month=12, year=2013))
         git.cabinet_sig(datetime(day=17, month=12, year=2013))
 
 
-def test_do_git():
-    import concurrent.futures
+def test_augmentation():
+    files = fs_operations.all_local_files('~/Laws')
+    res = git.augment_and_filter_files(files)
+    print('{} / {} successfully processed'.format(len(res), len(files)))
 
-    files = fs_operations.all_local_files('~/archive_laws')
-    files_with_cit = []
-    for f in files[:100]:
-        xml = xml_operations.zip_to_xml(f)
-        try:
-            cit = xml_operations.Citation.from_xml(xml)
-        except ValueError:
-            continue
-        if cit.gazette in ['BGBl I', 'BGBl II']:
-            files_with_cit.append((f, cit))
-    print("Number of queries: ", len(files_with_cit))
-    # Since want to build a git history its important that we get the order right.
-    # We do all th searches upfornt and than sort again
-    with concurrent.futures.ProcessPoolExecutor(max_workers=30) as executor:
-        future_to_file = {
-            executor.submit(online_lookups.search_bundestag_dip, cit.gazette, cit.year, cit.page): f
-            for (f, cit) in files_with_cit
-        }
-    for future in concurrent.futures.as_completed(future_to_file):
-        f = future_to_file[future]
-        future.result()
+
+def test_git_commit():
+    with tempfile.TemporaryDirectory() as tmpdirname:
+        # Download one file
+        link = 'http://www.gesetze-im-internet.de/ekrv_1/xml.zip'
+        path = online_lookups.download_gii_if_non_existing(tmpdirname, link)
+        augmented_files = git.augment_and_filter_files([path])
+        repo = pygit2.init_repository(tmpdirname)
+        if len(augmented_files) == 0:
+            assert("Expected proceedings data for this file!")
+        for (f, cit, aug) in augmented_files:
+            msg = git.prepare_commit_message(f, aug)
+            git.commit_update(f, cit, msg, repo)

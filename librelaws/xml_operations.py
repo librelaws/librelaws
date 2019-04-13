@@ -21,6 +21,10 @@ def zip_to_xml(file):
         return etree.parse(zf.open(fname))
 
 
+def extract_long_name(xml):
+    return xml.find("//langue").text
+
+
 def transform_gii_xml_to_html(xml):
     """
     Transfom the xml format of `gesetze-im-internet.de`

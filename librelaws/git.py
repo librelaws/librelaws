@@ -1,5 +1,11 @@
-import pygit2
+from os import path
 from datetime import datetime, date
+
+import pygit2
+import pypandoc
+
+from .xml_operations import zip_to_xml, transform_gii_xml_to_html, extract_long_name
+from .conversion import html_to_markdown
 
 
 def cabinet_sig(at_date):
@@ -52,34 +58,102 @@ def cabinet_sig(at_date):
         raise ValueError("No cabinate found for date {}", at_date)
 
 
-def commit_entry(entry, repo_path="___test_repo___"):
-    repo = pygit2.init_repository(repo_path)
-    index = repo.index
+def prepare_commit_message(f, augmented_data):
+    """Prepare a commit message base on information in the xml file and the augmented data"""
+    xml = zip_to_xml(f)
+    msg = (
+        extract_long_name(xml)
+        + '\n\n'
+        + pypandoc.convert_text(augmented_data, to='markdown_github', format='html')
+    )
+    return msg
 
+
+def commit_update(f, citation, message, repository):
+    """
+    Apply and commit the changes described in filename `f` to the given `repository`
+
+    Parameters
+    ----------
+    f: str
+        Filename of the zipped xml file
+    citation: Citation
+        Description of where and when this change took place
+    repository: pygit2.Repository
+        Repository to which this change should be applied
+    """
+    # remove /.git/ from path
+    repo_path = path.dirname(path.dirname(repository.path))
+    index = repository.index
     # The initial commit
-    author = cabinet_sig(entry['bgbl'].date)
-
+    author = cabinet_sig(citation.date())
     # The path to the new / updated file rel. to the repo
-    new_file = entry['abbrev'] + '.md'
+    fname_md = path.basename(path.dirname(f)) + '.md'
     # Replace some chars
-    new_file = new_file.replace('/', '_')
-    with open(path.join(repo_path, new_file), 'w') as f:
-        f.write(entry['md'])
-    index.add(new_file)
+    fname_md = fname_md.replace('/', '_')
+    md_path = path.join(repo_path, fname_md)
+    with open(md_path, 'w') as f_md:
+        xml = zip_to_xml(f)
+        md = html_to_markdown(transform_gii_xml_to_html(xml))
+        f_md.write(md)
+    index.add(fname_md)
     index.write()
-    
     try:
-        head = repo.head
+        head = repository.head
     except pygit2.GitError:
         head = None
-    
-    repo.create_commit(
-        'refs/heads/master', # the name of the reference to update
-        author, author, entry['msg'],
+    repository.create_commit(
+        'refs/heads/master',  # the name of the reference to update
+        author, author, message,
         # binary string representing the tree object ID
         index.write_tree(),
         # list of binary strings representing parents of the new commit
         [head.get_object().hex] if head is not None else []
     )
-# for entry in entries[:]:    
-#     commit_entry(entry)
+
+
+def augment_and_filter_files(files):
+    """For each file, check if the relevant change was published in
+    the BgBl I or II gazette. If so, try to find augmenting
+    information about this change online.
+
+    The augmenting information is returned as a string of valid and
+    approriately cropped html. Files where the citation could not be
+    established at all are filtered out.
+
+    Parameter
+    ---------
+    files: list
+        List of paths to zipped xml files
+
+    Return
+    ------
+    list of tuple: [(filepath, citation, {str, None})]
+
+    """
+    from librelaws import xml_operations, online_lookups
+    import concurrent.futures
+
+    out = []
+    with concurrent.futures.ProcessPoolExecutor(max_workers=30) as executor:
+        for f in files:
+            xml = xml_operations.zip_to_xml(f)
+            try:
+                cit = xml_operations.Citation.from_xml(xml)
+            except ValueError:
+                # Skip files with no citation
+                continue
+            if cit.gazette not in ['BGBl I', 'BGBl II']:
+                # Skip all the other gazettes for now
+                continue
+            try:
+                cit.date()
+            except TypeError:
+                # Some parts of the dates were missing; skip those files
+                continue
+            out.append(
+                [f, cit, executor.submit(online_lookups.search_bundestag_dip, cit.gazette, cit.year, cit.page)]
+            )
+    # Wait for lookups to finish...
+    out = [(f, cit, fut.result()) for (f, cit, fut) in out]
+    return sorted(out, key=lambda el: el[1].date())
