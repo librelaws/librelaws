@@ -106,23 +106,24 @@ class Citation:
         ------
         ValueError: If no citation could be identified
         """
-        comment = xml.find("//standangabe/standkommentar[last()]")
-        if comment is None:
-            raise ValueError("Xml has no `standkommentar` nodes")
-        pattern = r'\w\. (\d{1,2})\.(\d{1,2})\.(\d{4})\s(\w+)\s(\d+)'
-        matches = re.findall(pattern, comment.text)
+        comments = xml.xpath("//standangabe/standkommentar")
         citations = []
-        for m in matches:
-            (day, month, year, part, page) = m
-            if part == 'I':
-                gazette = 'BGBl I'
-            elif part == 'II':
-                gazette = 'BGBl I'
-            else:
-                gazette = part
-            citations.append(cls(gazette, year, month, day, page))
-        if len(citations) == 0:
-            raise ValueError("Could not identify citation")
+        for comment in comments:
+            if comment is None:
+                raise ValueError("Xml has no `standkommentar` nodes")
+            pattern = r'\w\. (\d{1,2})\.(\d{1,2})\.(\d{4})\s(\w+)\s(\d+)'
+            matches = re.findall(pattern, comment.text)
+            for m in matches:
+                (day, month, year, part, page) = m
+                if part == 'I':
+                    gazette = 'BGBl I'
+                elif part == 'II':
+                    gazette = 'BGBl I'
+                else:
+                    gazette = part
+                citations.append(cls(gazette, year, month, day, page))
+            if len(citations) == 0:
+                raise ValueError("Could not identify citation")
         # Return the newst citation
         return sorted(citations, key=lambda c: c.date())[-1]
 

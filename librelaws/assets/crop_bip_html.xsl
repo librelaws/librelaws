@@ -5,7 +5,9 @@
     <html>
       <meta charset="utf-8"/>
       <body>
-      	<xsl:apply-templates select="//fieldset/fieldset/fieldset[h1][position() &lt; 3]" />
+      	<!-- <xsl:apply-templates select="//fieldset/fieldset/fieldset[h1][position() &lt; 3]" /> -->
+	<xsl:apply-templates select="//fieldset[h1[contains(text(), 'Inhalt')]]" />
+	<xsl:apply-templates select="//fieldset[h1[contains(text(), 'Basisinformationen')]]" />
       </body>
     </html>
   </xsl:template>

@@ -7,10 +7,11 @@ from os.path import dirname, basename
 import requests
 from requests import get
 from tqdm import tqdm
+import pygit2
 
-from librelaws import online_lookups, fs_operations, xml_operations
+from librelaws import online_lookups, fs_operations, git
 from librelaws.online_lookups import (
-    download_gii_if_non_existing, lookup_history, search_bundestag_dip
+    download_gii_if_non_existing, lookup_history
 )
 
 
@@ -40,8 +41,9 @@ def add_git_subparser(subparsers):
     parser_git = subparsers.add_parser('git', description=description)
     parser_git.add_argument(
         'git-dir',
-        help='Directory where the git repository will be created. Must not be `download-dir`.'
+        help='Directory of the git repository. Must not be `download-dir`.'
     )
+    parser_git.set_defaults(func=do_git)
 
 
 def add_dl_subparser(subparsers):
@@ -58,9 +60,11 @@ def add_dl_subparser(subparsers):
     )
     parser_dl.set_defaults(func=do_download)
 
+
 def add_clean_subparser(subparsers):
     parser = subparsers.add_parser('clean', description='Delete duplicates from the `download-folder` keeping the oldest versions')
     parser.set_defaults(func=do_clean)
+
 
 def do_download(args):
     source = args.source
@@ -71,6 +75,7 @@ def do_download(args):
     if source == 'gii':
         updates = []
         etags = online_lookups.get_dict_folder_etag(dl_dir)
+
         def etag_for_url(url):
             k = basename(dirname(url))
             return etags.get(k, None)
@@ -113,6 +118,7 @@ def do_download(args):
                     continue
                 online_lookups.save_response(resp, dl_dir)
 
+
 def do_clean(args):
     dl_dir = args.__getattribute__('download-dir')
     files = sorted(fs_operations.all_local_files(dl_dir))
@@ -128,3 +134,19 @@ def do_clean(args):
             # Folder was not empty
             pass
     print("Removed {} duplicates leaving {} unique files.".format(len(dups), len(files) - len(dups)))
+
+
+def do_git(args):
+    dl_dir = args.__getattribute__('download-dir')
+    git_dir = args.__getattribute__('git-dir')
+    print(dl_dir, git_dir)
+    repo_path = pygit2.discover_repository(git_dir)
+    if repo_path is None:
+        repo = pygit2.init_repository(git_dir)
+    else:
+        repo = pygit2.Repository(repo_path)
+    files = fs_operations.all_local_files(dl_dir)
+    augmented_files = git.augment_and_filter_files(files)
+    for (f, cit, aug) in augmented_files:
+        msg = git.prepare_commit_message(f, aug)
+        git.commit_update(f, cit, msg, repo)
