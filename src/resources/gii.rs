@@ -8,6 +8,7 @@ use futures::{Future, Stream};
 use glob::glob;
 use libxml;
 use log::debug;
+use pandoc;
 use regex;
 use reqwest::{header, r#async::Client};
 use url::Url;
@@ -35,6 +36,8 @@ impl Entry {
     }
 
     pub fn latest_status(&self) -> Result<(Gazette, NaiveDate), Error> {
+        // This is a bug in the libxml wrapper: If doc goes out of
+        // scope, root etc will not work either!
         let doc = libxml::parser::Parser::default()
             .parse_string(&self.xml)
             .map_err(|e| format_err!("Invalid XML: {:?}", e))?;
@@ -55,6 +58,30 @@ impl Entry {
         parsed_comments
             .pop()
             .ok_or_else(|| format_err!("Failed to parse any status comments"))
+    }
+
+    pub fn to_markdown(&self) -> Result<String, Error> {
+        let html = libxml::parser::Parser::default()
+            .parse_string(&self.xml)
+            .map(|doc| {
+                let mut xsl = libxslt::parser::parse_file(
+                    "/home/christian/repos/librelaws/librelaws/librelaws/assets/gii_xml_to_html.xsl",
+                )
+                    .unwrap();
+                xsl.transform(&doc).unwrap().to_string(true)
+            })
+            .map_err(|e| format_err!("{:?}", e))?;
+        let pandoc_doc = pandoc::new()
+            .set_input_format(pandoc::InputFormat::Html, vec![])
+            .set_input(pandoc::InputKind::Pipe(html))
+            .set_output(pandoc::OutputKind::Pipe)
+            .set_output_format(pandoc::OutputFormat::Markdown, Vec::new())
+            .to_owned()
+            .execute()?;
+        match pandoc_doc {
+            pandoc::PandocOutput::ToBuffer(s) => Ok(s),
+            _ => Err(format_err!("Expected pandoc output in buffer.")),
+        }
     }
 }
 
@@ -265,6 +292,13 @@ mod tests {
         for ex in &examples {
             parse_status_comment(ex).unwrap();
         }
+    }
+
+    #[test]
+    fn convert_to_md() {
+        let buf = std::fs::read("/home/christian/repos/librelaws/librelaws/src/test_files/xml.zip").unwrap();
+        let entry = Entry::new(&buf).unwrap();
+        dbg!(entry.to_markdown().unwrap());
     }
 
     #[test]

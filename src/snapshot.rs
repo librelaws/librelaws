@@ -83,7 +83,7 @@ impl Snapshot {
         Ok(Self { snap_dir })
     }
 
-    /// Date based on the expection of the XML content
+    /// Date based on the inpection of the XML content
     pub fn date(&self) -> Result<i64> {
         use crate::gii::Entry;
         let entry = Entry::new(&self.zipped_snapshot()?)?;
@@ -100,7 +100,7 @@ impl Snapshot {
     }
 
     pub fn zipped_snapshot(&self) -> Result<Vec<u8>> {
-        unimplemented!()
+        Ok(std::fs::read(self.snap_dir.join("xml.zip"))?)
     }
 
     pub fn add_zipped_snapshot(&self, buf: &[u8], etag: Option<&str>) -> Result<()> {
